@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# Діагностичний та інсталяційний скрипт для усунення CVE-2025-49113 (Roundcube)
+# Діагностичний та інсталяційний скрипт для усунення CVE-2025-49113 [Roundcube]
 # ==============================================================================
 
 # Кольори для гарного виведення
@@ -32,7 +32,7 @@ CAN_UPDATE=false
 
 # Скануємо наявність панелей
 if [ -d "/usr/local/cwp" ]; then
-    PANEL="CWP (Control Web Panel)"
+    PANEL="CWP - Control Web Panel"
     CAN_UPDATE=true
 elif [ -d "/usr/local/cpanel" ]; then
     PANEL="cPanel / WHM"
@@ -43,9 +43,9 @@ elif [ -d "/usr/local/hestia" ]; then
 elif [ -d "/home/cyberpanel" ]; then
     PANEL="CyberPanel"
 else
-    # Перевірка на "чистий" LAMP/LEMP
+    # Перевірка на чистий LAMP/LEMP
     if [ -d "/var/www/html" ] && (which nginx &>/dev/null || which httpd &>/dev/null || which apache2 &>/dev/null); then
-        PANEL="Чистий LAMP/LEMP (Без панелі)"
+        PANEL="Чистий LAMP або LEMP - Без панелі"
     fi
 fi
 
@@ -53,7 +53,7 @@ echo -e "Виявлена панель: ${GREEN}$PANEL${NC}"
 
 # Виведення статусу залежно від панелі
 case "$PANEL" in
-    "CWP (Control Web Panel)")
+    "CWP - Control Web Panel")
         echo -e "Статус оновлення: ${GREEN}МОЖНА ОНОВИТИ АВТОМАТИЧНО ЦИМ СКРИПТОМ${NC}"
         ;;
     "cPanel / WHM")
@@ -64,7 +64,7 @@ case "$PANEL" in
         ;;
     "DirectAdmin")
         echo -e "Статус оновлення: ${RED}НЕ МОЖНА ОНОВИТИ ЦИМ СКРИПТОМ${NC}"
-        echo -e "${YELLOW}👉 Рішення (CustomBuild):${NC}"
+        echo -e "${YELLOW}👉 Рішення [CustomBuild]:${NC}"
         echo -e "   cd /usr/local/directadmin/custombuild"
         echo -e "   ./build update"
         echo -e "   ./build roundcube"
@@ -75,14 +75,14 @@ case "$PANEL" in
         echo -e "${YELLOW}👉 Рішення:${NC} Roundcube оновлюється через системний менеджер пакетів apt. Запустіть: ${BLUE}apt-get update && apt-get --only-upgrade install hestia-php roundcube${NC}"
         exit 0
         ;;
-    "Чистий LAMP/LEMP (Без панелі)")
+    "Чистий LAMP або LEMP - Без панелі")
         echo -e "Статус оновлення: ${RED}НЕ МОЖНА ОНОВИТИ ЦИМ СКРИПТОМ${NC}"
-        echo -e "${YELLOW}⚠️ Увага:${NC} Roundcube розгорнуто вручну (імовірно в /var/www/html/ чи суміжну директорію)."
+        echo -e "${YELLOW}⚠️ Увага:${NC} Roundcube розгорнуто вручну, імовірно в /var/www/html/ чи суміжну директорію."
         echo -e "${YELLOW}👉 Рішення:${NC} Потрібно локалізувати директорію інсталяції, завантажити архів з офіційного GitHub Roundcube і запустити штатний бінарник ${BLUE}bin/installto.sh /шлях/до/roundcube${NC}"
         exit 0
         ;;
     *)
-        echo -e "Статус оновлення: ${RED}НЕВІДОМА СЕРЕДОВИЩЕ${NC}"
+        echo -e "Статус оновлення: ${RED}НЕВІДОМЕ СЕРЕДОВИЩЕ${NC}"
         echo -e "${YELLOW}Зупинка, щоб нічого не пошкодити. Виконуйте оновлення вручну відповідно до архітектури сервера.${NC}"
         exit 1
         ;;
@@ -97,16 +97,15 @@ RC_VERSION_FILE="/usr/local/cwpsrv/var/services/roundcube/program/include/iniset
 if [ -f "$RC_VERSION_FILE" ]; then
     # Витягуємо версію з константи RCMAIL_VERSION
     CURRENT_VERSION=$(grep "define('RCMAIL_VERSION'" "$RC_VERSION_FILE" | head -n 1 | cut -d"'" -f4)
-    echo -e "Поточна версія Roundcube 
-
+    echo -e "Поточна версія Roundcube до оновлення: ${RED}$CURRENT_VERSION${NC}"
 else
     echo -e "${RED}[ПОМИЛКА] Не вдалося знайти файл конфігурації Roundcube для визначення версії.${NC}"
     exit 1
 fi
 
 
-# --- КРОК 3: ПЕРЕВІРКА ЗАЛЕЖНОСТЕЙ (PHP INTL) ТА ЛІКУВАННЯ ОС ---
-echo -e "\n${YELLOW}[3/4] Перевірка системних залежностей [PHP intl]...${NC}"
+# --- КРОК 3: ПЕРЕВІРКА ЗАЛЕЖНОСТЕЙ - PHP INTL ТА ЛІКУВАННЯ ОС ---
+echo -e "\n${YELLOW}[3/4] Перевірка системних залежностей - PHP intl...${NC}"
 CWP_PHP="/usr/local/cwp/php71/bin/php"
 
 if [ ! -f "$CWP_PHP" ]; then
@@ -117,7 +116,7 @@ fi
 if $CWP_PHP -m | grep -q 'intl'; then
     echo -e "${GREEN}[ОК] Розширення intl вже встановлено.${NC}"
 else
-    echo -e "${YELLOW}[ІНФО] Розширення intl відсутнє [критично для Roundcube 1.5+]. Вирішуємо проблему...${NC}"
+    echo -e "${YELLOW}[ІНФО] Розширення intl відсутнє, воно критично важливе для Roundcube 1.5+. Вирішуємо проблему...${NC}"
     
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -126,17 +125,17 @@ else
     fi
 
     if [[ "$OS_VER" == "7" ]]; then
-        echo -e "${YELLOW}Застосовуємо фікс для CentOS 7 [встановлення libicu69 вручну, оскільки штатні репо EOL]...${NC}"
+        echo -e "${YELLOW}Застосовуємо фікс для CentOS 7 - встановлення libicu69 вручну, оскільки штатні репозиторії EOL...${NC}"
         yum update ca-certificates -y
         rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el7.x86_64.rpm --force --nodeps
         curl -s -L https://www.alphagnu.com/upload/tmp/cwp_rc_fix.sh | bash
     elif [[ "$OS_VER" =~ ^8 ]] || [[ "$OS_NAME" == "almalinux" || "$OS_NAME" == "rocky" ]]; then
-        echo -e "${YELLOW}Застосовуємо фікс для AlmaLinux/RockyLinux 8...${NC}"
+        echo -e "${YELLOW}Застосовуємо фікс для AlmaLinux чи RockyLinux 8...${NC}"
         dnf update ca-certificates -y
         rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el8.x86_64.rpm --force --nodeps
         curl -s -L https://www.alphagnu.com/upload/tmp/el8/cwp_rc_fix_el8.sh | bash
     else
-        echo -e "${RED}[ПОМИЛКА] Автоматичний фікс intl не підтримує цю версію ОС [$OS_NAME $OS_VER].${NC}"
+        echo -e "${RED}[ПОМИЛКА] Автоматичний фікс intl не підтримує цю версію ОС: $OS_NAME $OS_VER.${NC}"
         exit 1
     fi
 
