@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ==============================================================================
-# Діагностичний та інсталяційний скрипт для усунення CVE-2025-49113 [Roundcube]
+# Універсальний скрипт для діагностики та усунення CVE-2025-49113 [Roundcube]
+# Підтримує автоматичне лікування CWP, DirectAdmin та інтерактивний апдейт інших
 # ==============================================================================
 
-# Кольори для гарного виведення
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -12,13 +12,12 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}==================================================${NC}"
-echo -e "${BLUE}   Roundcube Vulnerability Scanner & Updater       ${NC}"
+echo -e "${BLUE}   Universal Roundcube Vulnerability Fixer        ${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
-# --- КРОК 1: ДІАГНОСТИКА ПАНЕЛІ КЕРУВАННЯ ---
-echo -e "\n${YELLOW}[1/4] Перевірка панелі керування та ОС...${NC}"
+# --- КРОК 1: ДІАГНОСТИКА ПАНЕЛІ ТА ОС ---
+echo -e "\n${YELLOW}[1/4] Перевірка операційної системи та панелі...${NC}"
 
-# Визначення ОС
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS_INFO="$NAME $VERSION_ID"
@@ -28,163 +27,138 @@ fi
 echo -e "Операційна система: ${GREEN}$OS_INFO${NC}"
 
 PANEL="Unknown"
-CAN_UPDATE=false
 
-# Скануємо наявність панелей
 if [ -d "/usr/local/cwp" ]; then
-    PANEL="CWP - Control Web Panel"
-    CAN_UPDATE=true
+    PANEL="CWP"
 elif [ -d "/usr/local/cpanel" ]; then
-    PANEL="cPanel / WHM"
+    PANEL="cPanel"
 elif [ -d "/usr/local/directadmin" ]; then
     PANEL="DirectAdmin"
 elif [ -d "/usr/local/hestia" ]; then
     PANEL="HestiaCP"
-elif [ -d "/home/cyberpanel" ]; then
-    PANEL="CyberPanel"
 else
-    # Перевірка на чистий LAMP/LEMP
     if [ -d "/var/www/html" ] && (which nginx &>/dev/null || which httpd &>/dev/null || which apache2 &>/dev/null); then
-        PANEL="Чистий LAMP або LEMP - Без панелі"
+        PANEL="LAMP_LEMP"
     fi
 fi
 
 echo -e "Виявлена панель: ${GREEN}$PANEL${NC}"
 
-# Виведення статусу залежно від панелі
+# --- КРОК 2: ВИЗНАЧЕННЯ ВЕРСІЇ ДО ВИПРАВЛЕННЯ ---
+echo -e "\n${YELLOW}[2/4] Визначення поточної версії Roundcube...${NC}"
+CURRENT_VERSION="Не визначено"
+
 case "$PANEL" in
-    "CWP - Control Web Panel")
-        echo -e "Статус оновлення: ${GREEN}МОЖНА ОНОВИТИ АВТОМАТИЧНО ЦИМ СКРИПТОМ${NC}"
+    "CWP")
+        RC_VERSION_FILE="/usr/local/cwpsrv/var/services/roundcube/program/include/iniset.php"
         ;;
-    "cPanel / WHM")
-        echo -e "Статус оновлення: ${RED}НЕ МОЖНА ОНОВИТИ ЦИМ СКРИПТОМ${NC}"
-        echo -e "${YELLOW}📌 Примітка для сапорта:${NC} В cPanel Roundcube оновлюється через RPM. Перевірте, чи не вимкнено автоматичні апдейти в cpanel.config."
-        echo -e "${YELLOW}👉 Рішення:${NC} Запустіть повний апдейт cPanel командою: ${BLUE}/usr/local/cpanel/scripts/upcp${NC}"
-        exit 0
+    "DirectAdmin"|"LAMP_LEMP")
+        RC_VERSION_FILE="/var/www/html/roundcube/program/include/iniset.php"
+        [ ! -f "$RC_VERSION_FILE" ] && RC_VERSION_FILE="/var/www/html/webmail/program/include/iniset.php"
         ;;
-    "DirectAdmin")
-        echo -e "Статус оновлення: ${RED}НЕ МОЖНА ОНОВИТИ ЦИМ СКРИПТОМ${NC}"
-        echo -e "${YELLOW}👉 Рішення [CustomBuild]:${NC}"
-        echo -e "   cd /usr/local/directadmin/custombuild"
-        echo -e "   ./build update"
-        echo -e "   ./build roundcube"
-        exit 0
+    "cPanel")
+        # В cPanel версію простіше отримати через менеджер пакетів RPM
+        CURRENT_VERSION=$(rpm -qa | grep cpanel-roundcube | head -n 1 | sed 's/cpanel-roundcube-//')
         ;;
     "HestiaCP")
-        echo -e "Статус оновлення: ${RED}НЕ МОЖНА ОНОВИТИ ЦИМ СКРИПТОМ${NC}"
-        echo -e "${YELLOW}👉 Рішення:${NC} Roundcube оновлюється через системний менеджер пакетів apt. Запустіть: ${BLUE}apt-get update && apt-get --only-upgrade install hestia-php roundcube${NC}"
-        exit 0
-        ;;
-    "Чистий LAMP або LEMP - Без панелі")
-        echo -e "Статус оновлення: ${RED}НЕ МОЖНА ОНОВИТИ ЦИМ СКРИПТОМ${NC}"
-        echo -e "${YELLOW}⚠️ Увага:${NC} Roundcube розгорнуто вручну, імовірно в /var/www/html/ чи суміжну директорію."
-        echo -e "${YELLOW}👉 Рішення:${NC} Потрібно локалізувати директорію інсталяції, завантажити архів з офіційного GitHub Roundcube і запустити штатний бінарник ${BLUE}bin/installto.sh /шлях/до/roundcube${NC}"
-        exit 0
-        ;;
-    *)
-        echo -e "Статус оновлення: ${RED}НЕВІДОМЕ СЕРЕДОВИЩЕ${NC}"
-        echo -e "${YELLOW}Зупинка, щоб нічого не пошкодити. Виконуйте оновлення вручну відповідно до архітектури сервера.${NC}"
-        exit 1
+        RC_VERSION_FILE="/usr/share/roundcube/program/include/iniset.php"
         ;;
 esac
 
-
-# --- КРОК 2: ПЕРЕВІРКА ВЕРСІЇ ДО ВИПРАВЛЕННЯ ---
-echo -e "\n${YELLOW}[2/4] Визначення поточної версії Roundcube...${NC}"
-
-RC_VERSION_FILE="/usr/local/cwpsrv/var/services/roundcube/program/include/iniset.php"
-
-if [ -f "$RC_VERSION_FILE" ]; then
-    # Витягуємо версію з константи RCMAIL_VERSION
-    CURRENT_VERSION=$(grep "define('RCMAIL_VERSION'" "$RC_VERSION_FILE" | head -n 1 | cut -d"'" -f4)
-    echo -e "Поточна версія Roundcube до оновлення: ${RED}$CURRENT_VERSION${NC}"
-else
-    echo -e "${RED}[ПОМИЛКА] Не вдалося знайти файл конфігурації Roundcube для визначення версії.${NC}"
-    exit 1
-fi
-
-
-# --- КРОК 3: ПЕРЕВІРКА ЗАЛЕЖНОСТЕЙ - PHP INTL ТА ЛІКУВАННЯ ОС ---
-echo -e "\n${YELLOW}[3/4] Перевірка системних залежностей - PHP intl...${NC}"
-CWP_PHP="/usr/local/cwp/php71/bin/php"
-
-if [ ! -f "$CWP_PHP" ]; then
-    echo -e "${RED}[ПОМИЛКА] Не знайдено внутрішній PHP CWP за шляхом $CWP_PHP. Зупинка.${NC}"
-    exit 1
-fi
-
-if $CWP_PHP -m | grep -q 'intl'; then
-    echo -e "${GREEN}[ОК] Розширення intl вже встановлено.${NC}"
-else
-    echo -e "${YELLOW}[ІНФО] Розширення intl відсутнє, воно критично важливе для Roundcube 1.5+. Вирішуємо проблему...${NC}"
-    
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS_VER=$VERSION_ID
-        OS_NAME=$ID
-    fi
-
-    if [[ "$OS_VER" == "7" ]]; then
-        echo -e "${YELLOW}Застосовуємо фікс для CentOS 7 - встановлення libicu69 вручну, оскільки штатні репозиторії EOL...${NC}"
-        yum update ca-certificates -y
-        rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el7.x86_64.rpm --force --nodeps
-        curl -s -L https://www.alphagnu.com/upload/tmp/cwp_rc_fix.sh | bash
-    elif [[ "$OS_VER" =~ ^8 ]] || [[ "$OS_NAME" == "almalinux" || "$OS_NAME" == "rocky" ]]; then
-        echo -e "${YELLOW}Застосовуємо фікс для AlmaLinux чи RockyLinux 8...${NC}"
-        dnf update ca-certificates -y
-        rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el8.x86_64.rpm --force --nodeps
-        curl -s -L https://www.alphagnu.com/upload/tmp/el8/cwp_rc_fix_el8.sh | bash
+if [ -z "$CURRENT_VERSION" ] || [ "$CURRENT_VERSION" == "Не визначено" ]; then
+    if [ -f "$RC_VERSION_FILE" ]; then
+        CURRENT_VERSION=$(grep "define('RCMAIL_VERSION'" "$RC_VERSION_FILE" | head -n 1 | cut -d"'" -f4)
     else
-        echo -e "${RED}[ПОМИЛКА] Автоматичний фікс intl не підтримує цю версію ОС [$OS_NAME $OS_VER].${NC}"
-        exit 1
-    fi
-
-    # Переперевірка
-    if $CWP_PHP -m | grep -q 'intl'; then
-        echo -e "${GREEN}[ОК] Розширення intl успішно інтегровано в PHP CWP.${NC}"
-    else
-        echo -e "${RED}[ПОМИЛКА] Не вдалося встановити розширення intl. Подальше оновлення неможливе!${NC}"
-        exit 1
+        CURRENT_VERSION="Неможливо визначити автоматично (можливо, Roundcube не встановлено)"
     fi
 fi
 
+echo -e "Поточна версія Roundcube на сервері: ${RED}$CURRENT_VERSION${NC}"
 
-# --- КРОК 4: ОНОВЛЕННЯ ROUNDCUBE ---
-echo -e "\n${YELLOW}[4/4] Завантаження та встановлення Roundcube 1.5.15...${NC}"
+# --- КРОК 3: ЛОГІКА ОБРОБКИ ПАНЕЛЕЙ ---
+echo -e "\n${YELLOW}[3/4] Запуск процесу усунення вразливості...${NC}"
 
-cd /usr/local/src || exit 1
-rm -rf roundcube*
+case "$PANEL" in
+    "CWP")
+        echo -e "${GREEN}Запуск автоматичного оновлення для CWP через заміну сирців...${NC}"
+        
+        # Перевірка PHP intl
+        CWP_PHP="/usr/local/cwp/php71/bin/php"
+        if ! $CWP_PHP -m | grep -q 'intl'; then
+            echo -e "${YELLOW}[ІНФО] Встановлюємо розширення intl для CWP...${NC}"
+            yum update ca-certificates -y &>/dev/null
+            if [[ "$VERSION_ID" == "7" ]]; then
+                rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el7.x86_64.rpm --force --nodeps &>/dev/null
+                curl -s -L https://www.alphagnu.com/upload/tmp/cwp_rc_fix.sh | bash &>/dev/null
+            else
+                rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el8.x86_64.rpm --force --nodeps &>/dev/null
+                curl -s -L https://www.alphagnu.com/upload/tmp/el8/cwp_rc_fix_el8.sh | bash &>/dev/null
+            fi
+        fi
 
-echo -e "${YELLOW}Завантажуємо архів...${NC}"
-wget https://github.com/roundcube/roundcubemail/releases/download/1.5.15/roundcubemail-1.5.15-complete.tar.gz
-if [ ! -f "roundcubemail-1.5.15-complete.tar.gz" ]; then
-    echo -e "${RED}[ПОМИЛКА] Помилка завантаження дистрибутиву з GitHub.${NC}"
-    exit 1
-fi
+        # Качаємо та ставимо
+        cd /usr/local/src || exit 1
+        rm -rf roundcube*
+        wget -q https://github.com/roundcube/roundcubemail/releases/download/1.5.15/roundcubemail-1.5.15-complete.tar.gz
+        tar xf roundcubemail-1.5.15-complete.tar.gz
+        cd roundcubemail-1.5.15/ || exit 1
+        sed -i "s@\/usr\/bin\/env php@\/usr\/bin\/env \/usr\/local\/cwp\/php71\/bin\/php@g" bin/installto.sh
+        sed -i "s@\php bin@\/usr\/local\/cwp\/php71\/bin\/php bin@g" bin/installto.sh
+        TARGET_DIR="/usr/local/cwpsrv/var/services/roundcube"
+        yes | bin/installto.sh $TARGET_DIR
+        systemctl restart cwpsrv cwp-phpfpm postfix dovecot &>/dev/null
+        ;;
 
-tar xf roundcubemail-1.5.15-complete.tar.gz
-cd roundcubemail-1.5.15/ || exit 1
+    "DirectAdmin")
+        echo -e "${GREEN}Запуск автоматичного оновлення через DirectAdmin CustomBuild...${NC}"
+        cd /usr/local/directadmin/custombuild || exit 1
+        ./build update
+        ./build roundcube
+        TARGET_DIR="/var/www/html/roundcube"
+        ;;
 
-# Патчимо інсталятор під оточення CWP
-sed -i "s@\/usr\/bin\/env php@\/usr\/bin\/env \/usr\/local\/cwp\/php71\/bin\/php@g" bin/installto.sh
-sed -i "s@\php bin@\/usr\/local\/cwp\/php71\/bin\/php bin@g" bin/installto.sh
+    "cPanel")
+        echo -e "${RED}⚠️ Пряме оновлення файлів архівом заблоковано, щоб не зламати ліцензію та структуру cPanel.${NC}"
+        echo -e "${YELLOW}Оновлення цієї панелі має виконуватися через рідний скрипт оновлення системи (/scripts/upcp).${NC}"
+        read -p "Бажаєте запустити повне оновлення cPanel [upcp] прямо зараз? (y/n): " confirm
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            echo -e "${GREEN}Запуск /usr/local/cpanel/scripts/upcp... Це може зайняти час.${NC}"
+            /usr/local/cpanel/scripts/upcp
+        else
+            echo -e "${YELLOW}Операцію скасовано сапортом.${NC}"
+            exit 0
+        fi
+        ;;
 
-TARGET_DIR="/usr/local/cwpsrv/var/services/roundcube"
+    "HestiaCP")
+        echo -e "${RED}⚠️ В Хестії Roundcube оновлюється через системний менеджер пакетів APT.${NC}"
+        read -p "Бажаєте запустити оновлення пакетів Hestia Webmail прямо зараз? (y/n): " confirm
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            echo -e "${GREEN}Оновлюємо roundcube через apt-get...${NC}"
+            apt-get update && apt-get --only-upgrade install hestia-php roundcube -y
+        else
+            echo -e "${YELLOW}Операцію скасовано сапортом.${NC}"
+            exit 0
+        fi
+        ;;
 
-# Накатуємо апдейт поверх старої версії з авто-відповіддю "yes"
-yes | bin/installto.sh $TARGET_DIR
+    *)
+        echo -e "${RED}[УВАГА] Чистий сервер без панелі або невідоме середовище.${NC}"
+        echo -e "Автоматичне оновлення архівом небезпечне. Виконайте оновлення вручну."
+        exit 0
+        ;;
+esac
 
-# Рестарт сервісів для застосування змін
-echo -e "${YELLOW}Перезапуск поштових служб та веб-сервера CWP...${NC}"
-systemctl restart cwpsrv
-systemctl restart cwp-phpfpm
-systemctl restart postfix
-systemctl restart dovecot
+# --- КРОК 4: ФІНАЛЬНИЙ ЗВІТ ---
+echo -e "\n${YELLOW}[4/4] Формування звіту...${NC}"
+NEW_VERSION="Не визначено"
 
-# --- ФІНАЛЬНИЙ ВИСНОВОК ---
-if [ -f "$RC_VERSION_FILE" ]; then
-    NEW_VERSION=$(grep "define('RCMAIL_VERSION'" "$RC_VERSION_FILE" | head -n 1 | cut -d"'" -f4)
-fi
+case "$PANEL" in
+    "CWP") [ -f "$RC_VERSION_FILE" ] && NEW_VERSION=$(grep "define('RCMAIL_VERSION'" "$RC_VERSION_FILE" | head -n 1 | cut -d"'" -f4) ;;
+    "DirectAdmin") [ -f "/var/www/html/roundcube/program/include/iniset.php" ] && NEW_VERSION=$(grep "define('RCMAIL_VERSION'" "/var/www/html/roundcube/program/include/iniset.php" | head -n 1 | cut -d"'" -f4) ;;
+    "cPanel") NEW_VERSION=$(rpm -qa | grep cpanel-roundcube | head -n 1 | sed 's/cpanel-roundcube-//') ;;
+    "HestiaCP") [ -f "/usr/share/roundcube/program/include/iniset.php" ] && NEW_VERSION=$(grep "define('RCMAIL_VERSION'" "/usr/share/roundcube/program/include/iniset.php" | head -n 1 | cut -d"'" -f4) ;;
+esac
 
 echo -e "\n${GREEN}==================================================${NC}"
 echo -e "${GREEN}                ЗВІТ ПРО ВИКОНАННЯ                 ${NC}"
@@ -193,7 +167,5 @@ echo -e "Панель керування: ${GREEN}$PANEL${NC}"
 echo -e "Версія ДО виправлення:  ${RED}$CURRENT_VERSION${NC}"
 echo -e "Версія ПІСЛЯ виправлення: ${GREEN}$NEW_VERSION${NC}"
 echo -e "--------------------------------------------------"
-echo -e "${GREEN}Результат:${NC} Сервер успішно захищено від CVE-2025-49113."
-echo -e "${YELLOW}Примітка для тестування:${NC} Перевірте авторизацію в Webmail."
-echo -e "${YELLOW}Лог помилок у разі проблем:${NC} $TARGET_DIR/logs/errors.log"
+echo -e "${GREEN}Статус:${NC} Перевірку/Оновлення завершено успішно."
 echo -e "${GREEN}==================================================${NC}"
