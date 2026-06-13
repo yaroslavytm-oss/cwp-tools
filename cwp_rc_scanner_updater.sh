@@ -117,7 +117,7 @@ fi
 if $CWP_PHP -m | grep -q 'intl'; then
     echo -e "${GREEN}[ОК] Розширення intl вже встановлено.${NC}"
 else
-    echo -e "${YELLOW}[ІНФО] Розширення intl відсутнє (критично для Roundcube 1.5+). Вирішуємо проблему...${NC}"
+    echo -e "${YELLOW}[ІНФО] Розширення intl відсутнє [критично для Roundcube 1.5+]. Вирішуємо проблему...${NC}"
     
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -126,7 +126,7 @@ else
     fi
 
     if [[ "$OS_VER" == "7" ]]; then
-        echo -e "${YELLOW}Застосовуємо фікс для CentOS 7 (встановлення libicu69 вручну, оскільки штатні репо EOL)...${NC}"
+        echo -e "${YELLOW}Застосовуємо фікс для CentOS 7 [встановлення libicu69 вручну, оскільки штатні репо EOL]...${NC}"
         yum update ca-certificates -y
         rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el7.x86_64.rpm --force --nodeps
         curl -s -L https://www.alphagnu.com/upload/tmp/cwp_rc_fix.sh | bash
