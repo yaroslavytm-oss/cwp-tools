@@ -136,7 +136,7 @@ else
         rpm -ivh https://github.com/mysterydata/md-disk/raw/main/libicu69-69.1-4.el8.x86_64.rpm --force --nodeps
         curl -s -L https://www.alphagnu.com/upload/tmp/el8/cwp_rc_fix_el8.sh | bash
     else
-        echo -e "${RED}[ПОМИЛКА] Автоматичний фікс intl не підтримує цю версію ОС ($OS_NAME $OS_VER).${NC}"
+        echo -e "${RED}[ПОМИЛКА] Автоматичний фікс intl не підтримує цю версію ОС [$OS_NAME $OS_VER].${NC}"
         exit 1
     fi
 
