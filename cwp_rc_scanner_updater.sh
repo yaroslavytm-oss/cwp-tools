@@ -155,7 +155,8 @@ echo -e "\n${YELLOW}[4/4] Завантаження та встановлення
 cd /usr/local/src || exit 1
 rm -rf roundcube*
 
-wget -q --show-progress https://github.com/roundcube/roundcubemail/releases/download/1.5.15/roundcubemail-1.5.15-complete.tar.gz
+echo -e "${YELLOW}Завантажуємо архів...${NC}"
+wget https://github.com/roundcube/roundcubemail/releases/download/1.5.15/roundcubemail-1.5.15-complete.tar.gz
 if [ ! -f "roundcubemail-1.5.15-complete.tar.gz" ]; then
     echo -e "${RED}[ПОМИЛКА] Помилка завантаження дистрибутиву з GitHub.${NC}"
     exit 1
