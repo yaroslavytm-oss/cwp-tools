@@ -106,7 +106,7 @@ fi
 
 
 # --- КРОК 3: ПЕРЕВІРКА ЗАЛЕЖНОСТЕЙ (PHP INTL) ТА ЛІКУВАННЯ ОС ---
-echo -e "\n${YELLOW}[3/4] Перевірка системних залежностей (PHP intl)...${NC}"
+echo -e "\n${YELLOW}[3/4] Перевірка системних залежностей [PHP intl]...${NC}"
 CWP_PHP="/usr/local/cwp/php71/bin/php"
 
 if [ ! -f "$CWP_PHP" ]; then
